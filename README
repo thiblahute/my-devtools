@@ -1,0 +1,10 @@
+Git repos
+---------
+
+This is just a very simple tool with few features to make it easier to work
+with several git repository as part of a same 'project'.
+
+This was developped to make it easier to work with the various modules of the
+GStreamer project (uninstalled).
+
+This tools only aims at helping me in my day to day development.

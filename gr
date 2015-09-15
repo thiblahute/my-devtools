@@ -1,0 +1,228 @@
+#!/usr/bin/env python3
+#
+# Copyright (c) 2014, Thibault Saunier tsaunier@gnome.org
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program; if not, write to the
+# Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
+# Boston, MA 02110-1301, USA.
+
+import os
+import sys
+import time
+import datetime
+import argparse
+import subprocess
+
+def printf(message):
+    print(message)
+    sys.stdout.flush()
+
+def r(command, verbose=True, print_stdout=True, no_failure=False):
+    if verbose:
+        print("    " + command)
+
+    try:
+        output = subprocess.check_output(command + " 2>&1", shell=True)
+    except subprocess.CalledProcessError as e:
+        if not no_failure:
+            print("=========\nCOMMAND FAILED\n      %s\n============\n" % command)
+            print("%s\n" % e.output.decode("utf-8"))
+
+        return False
+
+    if print_stdout:
+        print("  %s" % output.decode("utf-8").replace("\n", "\n  "))
+
+    return True
+
+
+def r0(command):
+    print(command)
+    subprocess.check_output(command, shell=True)
+
+class HandleRepos:
+    def __init__(self, options):
+        self.repos = self.list_repos()
+        self.options = options
+        self.toplevel = os.path.abspath(".")
+
+    def cd_toplevel(self, repo):
+        os.chdir(self.toplevel)
+
+    def list_repos(self):
+        fenv = {}
+        try:
+            with open(".repos.conf") as f:
+                code = compile(f.read(), "config", 'exec')
+                exec(code, fenv, None)
+            print("Loaded config")
+        except Exception as e:
+            if os.path.exists("config"):
+                print("Could not load config: %s" % e)
+        repos = fenv.get("repos")
+        if not repos:
+            repos = []
+            for f in os.listdir():
+                if os.path.exists(os.path.join(f, ".git")):
+                    repos.append(f)
+        return repos
+
+    def print_modules(self):
+        for repo in self.repos:
+            os.chdir(repo)
+            printf("%s: %s" % (repo, subprocess.check_output("git rev-parse --abbrev-ref HEAD".split(" ")).decode("utf-8")))
+
+            r("git show | head --lines=5", False, True)
+            self.cd_toplevel(repo)
+            printf("\n")
+
+    def save_all(self):
+        bname = "before_rebase-%s" % datetime.datetime.fromtimestamp(time.time()).strftime('%d-%m-%Y-%H.%M.%S')
+        for repo in self.repos:
+            os.chdir(repo)
+            cbranchname = [branch for branch in
+                           subprocess.check_output(["git", "branch"]).decode("utf-8").split("\n")
+                           if branch.startswith("*")][0].replace("* ", "")
+
+            if cbranchname.startswith("before_rebase"):
+                printf("==================\n%s ===> Current branch %s is already a saving branch!\n=====================" % (repo, cbranchname))
+            else:
+                print("[%s] Saving branch %s into %s...." % (repo, cbranchname, bname), end="")
+                r("git add \*", False, False, True)
+                commited = r("git commit -n -m 'COMMIT BEFORE SAVING'", False, False, True)
+                r("git checkout -b %s" % bname, False, False, True)
+                r("git reset --hard %s" % cbranchname, False, False, True)
+                r("git checkout %s" % cbranchname, False, False, True)
+                if commited:
+                    r("git reset --hard HEAD^", False, False, True)
+                    print(" Done", end="")
+                else:
+                    print(" Failed (nothing to save?)", end="")
+
+            self.cd_toplevel(repo)
+            printf("\n")
+
+    def print_current_branch(self, print_stdout):
+        print("    In '%s'" % subprocess.check_output("git rev-parse --abbrev-ref HEAD".split(" ")).decode("utf-8").replace("\n", ""))
+
+        return True
+
+    def run_autogen_if_needed(self, print_stdout):
+        if not os.path.exists("Makefile"):
+            autogen = 'CFLAGS+="-O0" ./autogen.sh --disable-docbook '
+            if not self.options.build_all:
+                autogen += " --disable-gtk-doc --disable-examples"
+            return r(autogen, True, print_stdout)
+
+        return True
+
+    def execute(self, arg=None, commands=None, print_stdout=True, final_message="Done",
+                pre_launch_func=None):
+        if commands is None:
+            commands = [' '.join(args)]
+
+        if not isinstance(commands, list):
+            commands = [commands]
+
+        for repo in self.repos:
+            print("%s:" % repo)
+            os.chdir(repo)
+            for command in commands:
+                if pre_launch_func:
+                    if not pre_launch_func(print_stdout):
+                        print("FATAL FAILURE running %s" % pre_launch_func)
+                        self.cd_toplevel(repo)
+                        return False
+                if not r(command, True, print_stdout):
+                    print("FATAL FAILURE")
+                    self.cd_toplevel(repo)
+                    return False
+
+            print(final_message)
+            self.cd_toplevel(repo)
+
+        return True
+
+    def run(self, args):
+        for s in self.options.skip:
+            print("Skipping %s" % s)
+            self.repos.remove(s)
+
+        print("Modules: %s" % self.repos)
+
+        if self.options.save_all:
+            self.save_all()
+
+        if self.options.print_modules:
+            self.print_modules()
+            sys.exit(0)
+
+        if self.options.clean:
+            command = 'git clean -fdx'
+            self.execute(None, command, False, "Cleaned")
+
+        if self.options.update:
+            command = 'git pull --rebase'
+            if not self.execute(None, command, False, "Updated",
+                                self.print_current_branch):
+                return False
+
+        if self.options.build:
+            self.execute(None, "make", False, pre_launch_func=self.run_autogen_if_needed)
+
+        if args:
+            self.execute(args, print_stdout=self.options.verbose)
+
+        return True
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-p", "--print", dest="print_modules",
+                        action="store_true",
+                        default=False)
+    parser.add_argument("-s", "--save-all", dest="save_all",
+                        action="store_true",
+                        default=False)
+
+    parser.add_argument("-c", "--clean", dest="clean",
+                        action="store_true",
+                        default=False)
+
+    parser.add_argument("-b", "--build", dest="build",
+                        action="store_true",
+                        default=False)
+
+    parser.add_argument("-u", "--update", dest="update",
+                        action="store_true",
+                        default=False)
+
+    parser.add_argument("-a", "--build-all", dest="build_all",
+                        action="store_true",
+                        default=False)
+
+    parser.add_argument("-sk", "--skip", dest="skip",
+                        action="append",
+                        help="Repos to skip",
+                        default=[])
+
+    parser.add_argument("-v", "--verbose", dest="verbose",
+                        action="store_true",
+                        default=False)
+
+    n = 0
+    (options, args) = parser.parse_known_args()
+
+    if not HandleRepos(options).run(args):
+        exit(1)
+    exit(0)
