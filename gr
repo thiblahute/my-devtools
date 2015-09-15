@@ -51,7 +51,7 @@ def r0(command):
     print(command)
     subprocess.check_output(command, shell=True)
 
-class HandleRepos:
+class ReposManager:
     def __init__(self, options):
         self.repos = self.list_repos()
         self.options = options
@@ -88,27 +88,24 @@ class HandleRepos:
             printf("\n")
 
     def save_all(self):
-        bname = "before_rebase-%s" % datetime.datetime.fromtimestamp(time.time()).strftime('%d-%m-%Y-%H.%M.%S')
+        bname = "save-%s" % datetime.datetime.fromtimestamp(time.time()).strftime('%d-%m-%Y-%H.%M.%S')
         for repo in self.repos:
             os.chdir(repo)
             cbranchname = [branch for branch in
                            subprocess.check_output(["git", "branch"]).decode("utf-8").split("\n")
                            if branch.startswith("*")][0].replace("* ", "")
 
-            if cbranchname.startswith("before_rebase"):
-                printf("==================\n%s ===> Current branch %s is already a saving branch!\n=====================" % (repo, cbranchname))
+            print("[%s] Saving branch %s into %s...." % (repo, cbranchname, bname), end="")
+            r("git add \*", False, False, True)
+            commited = r("git commit -n -m 'SAVING COMMIT'", False, False, True)
+            r("git checkout -b %s" % bname, False, False, True)
+            r("git reset --hard %s" % cbranchname, False, False, True)
+            r("git checkout %s" % cbranchname, False, False, True)
+            if commited:
+                r("git reset --hard HEAD^", False, False, True)
+                print(" Done", end="")
             else:
-                print("[%s] Saving branch %s into %s...." % (repo, cbranchname, bname), end="")
-                r("git add \*", False, False, True)
-                commited = r("git commit -n -m 'COMMIT BEFORE SAVING'", False, False, True)
-                r("git checkout -b %s" % bname, False, False, True)
-                r("git reset --hard %s" % cbranchname, False, False, True)
-                r("git checkout %s" % cbranchname, False, False, True)
-                if commited:
-                    r("git reset --hard HEAD^", False, False, True)
-                    print(" Done", end="")
-                else:
-                    print(" Failed (nothing to save?)", end="")
+                print(" Failed (nothing to save?)", end="")
 
             self.cd_toplevel(repo)
             printf("\n")
@@ -223,6 +220,6 @@ if __name__ == "__main__":
     n = 0
     (options, args) = parser.parse_known_args()
 
-    if not HandleRepos(options).run(args):
+    if not ReposManager(options).run(args):
         exit(1)
     exit(0)
