@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+
+import os
+import argparse
+from glob import glob
+
+# Should be used with:
+#   alias gstdump="rm /tmp/gstpipelinedumps/*; GST_DEBUG_DUMP_DOT_DIR=/tmp/gstpipelinedumps/"
+# in bashrc
+DOTDIR = os.path.expanduser("/tmp/gstpipelinedumps/")
+
+
+def run(options, args):
+    """ Create image from dot files. """
+    if options.target is not None:
+        os.system("rm -f /tmp/gstpipelinedumps/*")
+        os.system("mkdir /tmp/gstpipelinedumps/")
+        os.system("scp %s:/tmp/gstpipelinedumps/* /tmp/gstpipelinedumps/" % options.target)
+
+    print(args)
+    if options.list:
+        cmd = " ls %s" % DOTDIR
+    elif len(args) == 1:
+        if "/" in args[0]:
+            dotfile = args[0]
+            if not os.path.exists(DOTDIR):
+                os.makedirs(DOTDIR)
+        else:
+            dotfile = os.path.join(DOTDIR, args[0])
+        OUTFILE = os.path.join(DOTDIR, "%s.svg" % args[0])
+        cmd = "dot '%s' -Tsvg -o '%s' && firefox '%s'" % \
+            (dotfile, OUTFILE, OUTFILE)
+    else:
+        play_pause_fnames = sorted(glob(os.path.join(DOTDIR, "*PAUSED_PLAYING*")))
+        error_fnames = sorted(glob(os.path.join(DOTDIR, "*error*")))
+        if error_fnames and not options.choose:
+            OUTFILE = os.path.join(DOTDIR, "%s.svg" % error_fnames[-1])
+            cmd = "dot '%s' -Tsvg -o '%s' && firefox '%s'" % (
+                error_fnames[-1], OUTFILE, OUTFILE)
+        elif play_pause_fnames and not options.choose:
+            OUTFILE = os.path.join(DOTDIR, "%s.svg" % play_pause_fnames[-1])
+            cmd = "dot '%s' -Tsvg -o '%s' && firefox '%s'" % (
+                play_pause_fnames[-1], OUTFILE, OUTFILE)
+        else:
+            files = os.listdir(DOTDIR)
+            txt = 'Choose a file:\n'
+            i = 0
+            for dotfile in files:
+                txt += '%d - %s\n' % (i, dotfile)
+                i += 1
+            txt += "Result: "
+
+            res = input(txt)
+            print(res)
+            OUTFILE = os.path.join(DOTDIR, "%s.svg" % files[int(res)])
+            cmd = "dot '%s' -Tsvg -o '%s' && firefox '%s'" % \
+                (os.path.join(DOTDIR, files[int(res)]), OUTFILE, OUTFILE)
+
+    print("Launching %s" % cmd)
+
+    os.system(cmd)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-l", "--list", dest="list",
+                        action="store_true",
+                        default=False,
+                        help="List all avalaible dot files")
+    parser.add_argument("-t", "--target", dest="target",
+                        default=None, type=str,
+                        help="The ssh target from which to retrieve "
+                        "the dot files before using them.")
+    parser.add_argument("-c", "--choose", dest="choose",
+                        action="store_true",
+                        default=False,
+                        help="Show the list of avalaible dot files to choose"
+                        " which one to use")
+    (options, args) = parser.parse_known_args()
+
+    run(options, args)
