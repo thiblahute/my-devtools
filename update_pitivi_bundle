@@ -1,0 +1,191 @@
+#!/usr/bin/env python
+""" update_pitivi_bundle
+
+Usage:
+   update_pitivi_bundle [--choose][--bisect=<value>]
+
+
+Options:
+  -b --bisect=value     [start, bad, good]
+  -c --choose           Choose the bundle version to download
+  -h --help             Show this screen.
+  -h --help             Show this screen.
+  --version             Show version.
+"""
+
+from docopt import docopt
+
+import os
+import time
+import datetime
+import pickle
+import platform
+import tempfile
+import tarfile
+import subprocess
+from html.parser import HTMLParser
+
+bitness = platform.architecture()[0]
+arch = "x86" if bitness == "32bit" else "x86_64"
+
+class Bundle:
+    NOT_TESTED = "not-tested"
+    GOOD = "good"
+    BAD = "bad"
+
+    def __init__(self, uri):
+        self.bname = os.path.basename(uri)
+        tstruct = time.strptime(self.bname.split("-pitivi-latest")[0], "%Y%m%d-%H%M%S")
+
+        self.datetime = datetime.datetime(*tstruct[:6])
+        self.uri = uri
+
+        self.status = Bundle.NOT_TESTED
+
+    def __repr__(self):
+        return "From %s -- %s" % (self.datetime.strftime("%d %B %Y - %H:%m"), self.bname)
+
+class Bundles(HTMLParser):
+    def __init__(self, basepath):
+        super(Bundles, self).__init__()
+        self.archives = []
+        self.basepath = basepath
+
+        self.last_failure = None
+        self.last_sucess = None
+        self.last_download = None
+
+    def handle_data(self, data):
+        if "pitivi-latest" in data:
+            self.archives.append(Bundle(os.path.join(self.basepath, data.strip())))
+
+    def feed(self, datas):
+        super(Bundles, self).feed(datas)
+        self.archives = sorted(self.archives, key=lambda bundle: bundle.datetime)
+
+    def __iter__(self):
+        return self.archives.__iter__()
+
+    def __len__(self):
+        return len(self.archives)
+
+    def __getitem__(self, i):
+        return self.archives[i]
+
+def download_bundle_list():
+    indexf = tempfile.NamedTemporaryFile(suffix="pitivi_bundle")
+    index = "http://pitivi.ecchi.ca/bundles/daily/%ss/archives/" % (bitness)
+    command = "wget %s -O %s" % (index, indexf.name)
+    subprocess.check_output(command.split(" "))
+
+    bundles = Bundles(index)
+    bundles.feed(open(indexf.name).read())
+
+    return bundles
+
+def get_bundle_uri(arguments):
+    bundle = None
+    if arguments.get("--choose"):
+        print("Avalaible bundles:")
+        i = 0
+
+        bundles = download_bundle_list()
+        for bundle in bundles:
+            print("[%d] %s" % (i, bundle))
+            i += 1
+        i = int(input("What bundle do you what do use? "))
+        if i > len(bundles):
+            print("Wrong answer %d > number of acrhive: %d" % (i, len(bundles)))
+
+        bundle = bundles[i].uri
+    elif not bundle:
+        bundle = "http://pitivi.ecchi.ca/bundles/daily/%ss/pitivi-latest-%s.tar.xz" % (
+            bitness, arch)
+
+    return bundle
+
+
+def download_bundle(arguments=None, bundle=None):
+    tmpfile = tempfile.NamedTemporaryFile(suffix="pitivi_bundle")
+
+    if not bundle:
+        bundle = get_bundle_uri(arguments)
+
+    os.system("wget %s -O %s" % (bundle, tmpfile.name))
+
+    return tmpfile
+
+def bisect(arguments):
+    starting = False
+
+    if arguments == "start":
+        starting = True
+    else:
+
+        try:
+            bundles = pickle.load(open(".bisecting", "rb"))
+        except FileNotFoundError:
+            print("Starting bisection!")
+            starting = True
+
+    if starting:
+        bundles = download_bundle_list()
+        bundles.last_download = len(bundles) - 1
+    elif arguments == "good":
+        bundles[bundles.last_download].status = Bundle.GOOD
+        bundles.last_sucess = bundles.last_download
+        if not bundles.last_failure:
+            bundles.last_download = 0
+    elif arguments == "bad":
+        bundles[bundles.last_download].status = Bundle.BAD
+        bundles.last_failure = bundles.last_download
+        if not bundles.last_sucess:
+            bundles.last_download = 0
+        else:
+            download = int((bundles.last_failure + bundles.last_sucess) / 2)
+            if download == bundles.last_download:
+                if bundles[download + 1].status == Bundle.NOT_TESTED:
+                    bundles.last_download = download + 1
+    else:
+        print("Wrong bisect argment %s" % arguments)
+        exit(1)
+
+    bundle = bundles[bundles.last_download]
+    if bundle.status != Bundle.NOT_TESTED:
+        print("ERROR: Bundle %s already tested" % bundle)
+        exit(1)
+    print("\n==========\nGetting bundle: %s\n===========\n" % bundle)
+    tmpfile = download_bundle(bundle=bundle.uri)
+    pickle.dump(bundles, open(".bisecting", "wb"))
+
+    return tmpfile
+
+if __name__ == "__main__":
+    arguments = docopt(__doc__, version='update_pitivi_bundle')
+
+    bisect_action = arguments.get("--bisect")
+    if not bisect_action:
+        tmpfile = download_bundle(arguments)
+    else:
+        tmpfile = bisect(bisect_action)
+
+    cdir = os.path.abspath(os.curdir)
+    slink = os.path.join(cdir, "pitivi-0.94-%s" % arch)
+
+    bundle = os.path.realpath(slink)
+    md5 = slink + ".md5sum"
+    try:
+        os.remove(md5)
+    except FileNotFoundError:
+        pass
+    try:
+        os.remove(slink)
+    except FileNotFoundError:
+        pass
+
+    try:
+        os.remove(bundle)
+    except FileNotFoundError:
+        pass
+
+    tarfile.open(tmpfile.name).extractall()
