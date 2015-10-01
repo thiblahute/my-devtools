@@ -53,14 +53,17 @@ def r0(command):
 
 class ReposManager:
     def __init__(self, options):
-        self.repos = self.list_repos()
         self.options = options
+        self.repos = self.list_repos()
         self.toplevel = os.path.abspath(".")
 
     def cd_toplevel(self, repo):
         os.chdir(self.toplevel)
 
     def list_repos(self):
+        if self.options.repos:
+            return self.options.repos
+
         fenv = {}
         try:
             with open(".repos.conf") as f:
@@ -214,6 +217,11 @@ if __name__ == "__main__":
                         default=False)
 
     parser.add_argument("-sk", "--skip", dest="skip",
+                        action="append",
+                        help="Repos to skip",
+                        default=[])
+
+    parser.add_argument("-r", "--repos", dest="repos",
                         action="append",
                         help="Repos to skip",
                         default=[])
