@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# git-phab - git subcommand to integrate with phabricator
+#
+# Copyright (C) 2008  Owen Taylor
+# Copyright (C) 2015  Xavier Claessens <xavier.claessens@collabora.com>
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, If not, see
+# http://www.gnu.org/licenses/.
+
+import tempfile
+import subprocess
+import git
+import os
+import sys
+
+import configparser
+
+
+repo = git.Repo(os.getcwd())
+
+
+# Copied from git-bz
+def die(message):
+    print(message, file=sys.stderr)
+    sys.exit(1)
+
+
+# Copied from git-bz
+def prompt(message):
+    try:
+        while True:
+            # Using print here could result in Python adding a stray space
+            # before the next print
+            sys.stdout.write(message + " [yn] ")
+            sys.stdout.flush()
+            line = sys.stdin.readline().strip()
+            if line == 'y' or line == 'Y':
+                return True
+            elif line == 'n' or line == 'N':
+                return False
+    except KeyboardInterrupt:
+        # Ctrl+C doesn’t cause a newline
+        sys.stdout.write("\n")
+        return False
+
+# Copied from git-bz
+def edit_file(filename):
+    editor = repo.git.var("GIT_EDITOR")
+    process = subprocess.Popen(editor + " " + filename, shell=True)
+    process.wait()
+    if process.returncode != 0:
+        die("Editor exited with non-zero return code")
+
+# Copied from git-bz
+def edit_template(template):
+    # Prompts the user to edit the text 'template' and returns list of
+    # lines with comments stripped
+
+    handle, filename = tempfile.mkstemp(".txt", "git-phab-")
+    f = os.fdopen(handle, "w")
+    f.write(template)
+    f.close()
+
+    edit_file(filename)
+
+    return [l for l in open(filename, "r").readlines() if not l.startswith("#")]
+
+branches = edit_template('\n'.join(["# %s" % b.name for b in repo.branches]))
+for branch in branches:
+    branch = branch.replace("\n", "")
+    tagname = "archive/" + branch
+    try:
+        repo.git.tag(tagname, branch)
+    except git.exc.GitCommandError:
+        pass
+    try:
+        remote = repo.config_reader().get_value('archive-branches', 'remote')
+    except (configparser.NoSectionError, configparser.NoOptionError):
+        remote = None
+        while not remote:
+            remote = input("No phab.remote specified, what remote should be used"
+                           " to push you branch for review? (make sure they are"
+                           " readable by anyone accessing the phabricator instance): ")
+        repo.config_writer().set_value('archive-branches', 'remote', remote)
+
+    print("Pushing %s %s" % (remote, tagname))
+    repo.git.push(remote, tagname)
+    repo.git.branch("-D", branch)
