@@ -183,8 +183,11 @@ class ReposManager:
                                 self.print_current_branch):
                 return False
 
-        if self.options.build:
+        if self.options.build or self.options.check:
             self.execute(None, "make", False, pre_launch_func=self.run_autogen_if_needed)
+
+        if self.options.check:
+            self.execute(None, "make check", False)
 
         if args:
             self.execute(args, print_stdout=self.options.verbose)
@@ -205,6 +208,10 @@ if __name__ == "__main__":
                         default=False)
 
     parser.add_argument("-b", "--build", dest="build",
+                        action="store_true",
+                        default=False)
+
+    parser.add_argument("-ck", "--check", dest="check",
                         action="store_true",
                         default=False)
 
