@@ -28,18 +28,18 @@ def run(options, args):
         else:
             dotfile = os.path.join(DOTDIR, args[0])
         OUTFILE = os.path.join(DOTDIR, "%s.svg" % args[0])
-        cmd = "dot '%s' -Tsvg -o '%s' && firefox '%s'" % \
+        cmd = "dot '%s' -Tsvg -o '%s' && xdg-open '%s'" % \
             (dotfile, OUTFILE, OUTFILE)
     else:
         play_pause_fnames = sorted(glob(os.path.join(DOTDIR, "*PAUSED_PLAYING*")))
         error_fnames = sorted(glob(os.path.join(DOTDIR, "*error*")))
         if error_fnames and not options.choose:
             OUTFILE = os.path.join(DOTDIR, "%s.svg" % error_fnames[-1])
-            cmd = "dot '%s' -Tsvg -o '%s' && firefox '%s'" % (
+            cmd = "dot '%s' -Tsvg -o '%s' && xdg-open '%s'" % (
                 error_fnames[-1], OUTFILE, OUTFILE)
         elif play_pause_fnames and not options.choose:
             OUTFILE = os.path.join(DOTDIR, "%s.svg" % play_pause_fnames[-1])
-            cmd = "dot '%s' -Tsvg -o '%s' && firefox '%s'" % (
+            cmd = "dot '%s' -Tsvg -o '%s' && xdg-open '%s'" % (
                 play_pause_fnames[-1], OUTFILE, OUTFILE)
         else:
             files = os.listdir(DOTDIR)
@@ -53,7 +53,7 @@ def run(options, args):
             res = input(txt)
             print(res)
             OUTFILE = os.path.join(DOTDIR, "%s.svg" % files[int(res)])
-            cmd = "dot '%s' -Tsvg -o '%s' && firefox '%s'" % \
+            cmd = "dot '%s' -Tsvg -o '%s' && xdg-open '%s'" % \
                 (os.path.join(DOTDIR, files[int(res)]), OUTFILE, OUTFILE)
 
     print("Launching %s" % cmd)
