@@ -1,0 +1,12 @@
+#!/bin/bash -i
+
+get_proc=`ps a |grep 'python.*pitivi'|grep -v grep`
+echo $get_proc > get_it
+get_pid=`gawk -F" " '{ print $1 }' get_it`
+echo "PID is: $get_pid"
+
+if [ x$get_pid != x"" ]; then
+    gdb python $get_pid
+else
+    echo "Pitivi not running"
+fi
