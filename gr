@@ -128,12 +128,16 @@ class ReposManager:
         return True
 
     def run_autogen_if_needed(self, print_stdout):
-        if not os.path.exists("Makefile"):
+        if not os.path.exists("Makefile") or not os.path.exists("build"):
             if os.environ.get("CFLAGS"):
                 autogen = 'CFLAGS+="-O0" '
             else:
                 autogen = 'CFLAGS="-O0" '
-            autogen += './autogen.sh --disable-docbook '
+
+            if os.path.exists("autogen.sh"):
+                autogen += './autogen.sh --disable-docbook '
+            else:
+                autogen += './configure --disable-docbook '
 
             if not self.options.build_all:
                 autogen += " --disable-gtk-doc --disable-examples"
