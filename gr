@@ -17,16 +17,19 @@
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
 # Boston, MA 02110-1301, USA.
 
+import argparse
+import datetime
+import glob
 import os
+import subprocess
 import sys
 import time
-import datetime
-import argparse
-import subprocess
+
 
 def printf(message):
     print(message)
     sys.stdout.flush()
+
 
 def r(command, verbose=True, print_stdout=True, no_failure=False):
     if verbose:
@@ -36,7 +39,8 @@ def r(command, verbose=True, print_stdout=True, no_failure=False):
         output = subprocess.check_output(command + " 2>&1", shell=True)
     except subprocess.CalledProcessError as e:
         if not no_failure:
-            print("=========\nCOMMAND FAILED\n      %s\n============\n" % command)
+            print("=========\nCOMMAND FAILED\n      %s\n============\n" %
+                  command)
             print("%s\n" % e.output.decode("utf-8"))
 
         return False
@@ -51,6 +55,7 @@ def r0(command):
     print(command)
     subprocess.check_output(command, shell=True)
 
+
 class ReposManager:
     def __init__(self, options):
         self.options = options
@@ -62,7 +67,11 @@ class ReposManager:
 
     def list_repos(self):
         if self.options.repos:
-            return self.options.repos
+            r = []
+            for repo in self.options.repos:
+                r.extend(glob.glob(repo))
+
+            return r
 
         fenv = {}
         try:
