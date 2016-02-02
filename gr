@@ -30,14 +30,22 @@ def printf(message):
     print(message)
     sys.stdout.flush()
 
-
-def r(command, verbose=True, print_stdout=True, no_failure=False):
+def r(command, verbose=True, print_stdout=True, no_failure=False,
+      fix_in_shell=False):
     if verbose:
         print("    " + command)
 
     try:
         output = subprocess.check_output(command + " 2>&1", shell=True)
     except subprocess.CalledProcessError as e:
+        if fix_in_shell:
+            print("Error: %s" % e.output.decode("utf-8"))
+            print("Entering a shell in %s to fix that\n"
+                  " just `exit` once done`" % os.getcwd())
+            os.system(os.environ.get("SHELL", "/bin/sh"))
+
+            return r(command, verbose, no_failure, fix_in_shell)
+
         if not no_failure:
             print("=========\nCOMMAND FAILED\n      %s\n============\n" %
                   command)
@@ -128,7 +136,7 @@ class ReposManager:
         return True
 
     def run_autogen_if_needed(self, print_stdout):
-        if not os.path.exists("Makefile") or not os.path.exists("build"):
+        if not os.path.exists("Makefile") and not os.path.exists("build"):
             if os.environ.get("CFLAGS"):
                 autogen = 'CFLAGS+="-O0" '
             else:
@@ -146,7 +154,7 @@ class ReposManager:
         return True
 
     def execute(self, arg=None, commands=None, print_stdout=True, final_message="Done",
-                pre_launch_func=None):
+                pre_launch_func=None, fix_in_shell=False):
         if commands is None:
             commands = [' '.join(args)]
 
@@ -162,7 +170,8 @@ class ReposManager:
                         print("FATAL FAILURE running %s" % pre_launch_func)
                         self.cd_toplevel(repo)
                         return False
-                if not r(command, True, print_stdout):
+                if not r(command, True, print_stdout,
+                         fix_in_shell=fix_in_shell):
                     print("FATAL FAILURE")
                     self.cd_toplevel(repo)
                     return False
@@ -193,7 +202,7 @@ class ReposManager:
         if self.options.update:
             command = 'git pull --rebase'
             if not self.execute(None, command, False, "Updated",
-                                self.print_current_branch):
+                                self.print_current_branch, fix_in_shell=True):
                 return False
 
         if self.options.build or self.options.check:
