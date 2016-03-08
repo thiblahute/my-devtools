@@ -216,10 +216,14 @@ class ReposManager:
                 return False
 
         if self.options.build or self.options.check:
-            self.execute(None, "make", False, pre_launch_func=self.run_autogen_if_needed)
+            command = os.environ.get("make", "make")
+            if os.environ.get("XDGAPP_ENVPATH"):
+                command += " install"
+            self.execute(None, command, False, pre_launch_func=self.run_autogen_if_needed)
 
         if self.options.check:
-            self.execute(None, "make check", False)
+            command = os.environ.get("make", "make") + " check"
+            self.execute(None, command, False)
 
         if args:
             self.execute(args, print_stdout=self.options.verbose)
