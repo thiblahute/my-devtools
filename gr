@@ -31,7 +31,7 @@ def printf(message):
     sys.stdout.flush()
 
 def r(command, verbose=True, print_stdout=True, no_failure=False,
-      fix_in_shell=False):
+      fix_in_shell=True):
     if verbose:
         print("    " + command)
 
