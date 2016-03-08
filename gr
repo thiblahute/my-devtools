@@ -39,9 +39,11 @@ def r(command, verbose=True, print_stdout=True, no_failure=False,
         output = subprocess.check_output(command + " 2>&1", shell=True)
     except subprocess.CalledProcessError as e:
         if fix_in_shell:
+            print("=====================================")
             print("Error: %s" % e.output.decode("utf-8"))
             print("Entering a shell in %s to fix that\n"
                   " just `exit` once done`" % os.getcwd())
+            print("=====================================")
             os.system(os.environ.get("SHELL", "/bin/sh"))
 
             return r(command, verbose, no_failure, fix_in_shell)
@@ -154,7 +156,8 @@ class ReposManager:
         return True
 
     def execute(self, arg=None, commands=None, print_stdout=True, final_message="Done",
-                pre_launch_func=None, fix_in_shell=False):
+                pre_launch_func=None, fix_in_shell=True):
+
         if commands is None:
             commands = [' '.join(args)]
 
@@ -198,10 +201,17 @@ class ReposManager:
         if self.options.clean:
             command = 'git clean -fdx'
             self.execute(None, command, False, "Cleaned")
+            command = " git submodule foreach 'git clean -fdx'"
+            self.execute(None, command, False, "submodules Cleaned")
 
         if self.options.update:
             command = 'git pull --rebase'
             if not self.execute(None, command, False, "Updated",
+                                self.print_current_branch, fix_in_shell=True):
+                return False
+
+            command = 'git submodule update'
+            if not self.execute(None, command, False, "Submodule updated",
                                 self.print_current_branch, fix_in_shell=True):
                 return False
 
