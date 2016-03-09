@@ -7,15 +7,15 @@ from glob import glob
 # Should be used with:
 #   alias gstdump="rm /tmp/gstpipelinedumps/*; GST_DEBUG_DUMP_DOT_DIR=/tmp/gstpipelinedumps/"
 # in bashrc
-DOTDIR = os.path.expanduser("/tmp/gstpipelinedumps/")
+DOTDIR = os.path.expanduser("~/.cache/gstmkdump/")
 
 
 def run(options, args):
     """ Create image from dot files. """
     if options.target is not None:
-        os.system("rm -f /tmp/gstpipelinedumps/*")
-        os.system("mkdir /tmp/gstpipelinedumps/")
-        os.system("scp %s:/tmp/gstpipelinedumps/* /tmp/gstpipelinedumps/" % options.target)
+        os.system("rm -if %s *" % DOTDIR)
+        os.system("mkdir %s" % DOTDIR)
+        os.system("scp %s:%s* %s" % (options.target, DOTDIR, DOTDIR))
 
     print(args)
     if options.list:

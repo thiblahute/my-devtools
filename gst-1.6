@@ -30,4 +30,7 @@
 export GST_VERSION=`echo $0 | sed s/.*gst-//g`
 export CURRENT_GST=$MGST/$GST_VERSION
 
+export LADSPA_PATH=$CURRENT_GST/soniccloud/freeswitch/faust/
+export GST_PLUGIN_PATH=$CURRENT_GST/soniccloud/media_node/gst/plugins/
+
 $CURRENT_GST/gstreamer/scripts/gst-uninstalled
