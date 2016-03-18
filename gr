@@ -119,7 +119,7 @@ class ReposManager:
 
             print("[%s] Saving branch %s into %s...." % (repo, cbranchname, bname), end="")
             r("git add \*", False, False, True)
-            commited = r("git commit -n -m 'SAVING COMMIT'", False, False, True)
+            commited = r("git commit -n -m 'SAVING COMMIT'", False, False, True, False)
             r("git checkout -b %s" % bname, False, False, True)
             r("git reset --hard %s" % cbranchname, False, False, True)
             r("git checkout %s" % cbranchname, False, False, True)
@@ -145,9 +145,11 @@ class ReposManager:
                 autogen = 'CFLAGS="-O0" '
 
             if os.path.exists("autogen.sh"):
-                autogen += './autogen.sh --disable-docbook '
+                autogen += os.environ.get("autogen", "./autogen.sh ")
+                autogen += '--disable-docbook '
             else:
-                autogen += './configure --disable-docbook '
+                autogen += os.environ.get("configure", "./configure ")
+                autogen += '--disable-docbook '
 
             if not self.options.build_all:
                 autogen += " --disable-gtk-doc --disable-examples"
