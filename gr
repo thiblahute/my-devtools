@@ -31,7 +31,7 @@ def printf(message):
     sys.stdout.flush()
 
 def r(command, verbose=True, print_stdout=True, no_failure=False,
-      fix_in_shell=True):
+      fix_in_shell=True, recurse_i=0):
     if verbose:
         print("    " + command)
 
@@ -46,7 +46,8 @@ def r(command, verbose=True, print_stdout=True, no_failure=False,
             print("=====================================")
             os.system(os.environ.get("SHELL", "/bin/sh"))
 
-            return r(command, verbose, no_failure, fix_in_shell)
+            if recurse_i < 3:
+                return r(command, verbose, no_failure, fix_in_shell, recurse_i=recurse_i+1)
 
         if not no_failure:
             print("=========\nCOMMAND FAILED\n      %s\n============\n" %
@@ -145,7 +146,7 @@ class ReposManager:
                 autogen = 'CFLAGS="-O0" '
 
             if os.path.exists("autogen.sh"):
-                autogen += os.environ.get("autogen", "./autogen.sh ")
+                autogen += os.environ.get("autogen ", "./autogen.sh ")
                 autogen += '--disable-docbook '
             else:
                 autogen += os.environ.get("configure", "./configure ")
