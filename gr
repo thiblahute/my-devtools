@@ -36,7 +36,10 @@ def r(command, verbose=True, print_stdout=True, no_failure=False,
         print("    " + command)
 
     try:
-        output = subprocess.check_output(command + " 2>&1", shell=True)
+        if print_stdout:
+            subprocess.check_call(command + " 2>&1", shell=True)
+        else:
+            output = subprocess.check_output(command + " 2>&1", shell=True)
     except subprocess.CalledProcessError as e:
         if fix_in_shell:
             print("=====================================")
@@ -55,9 +58,6 @@ def r(command, verbose=True, print_stdout=True, no_failure=False,
             print("%s\n" % e.output.decode("utf-8"))
 
         return False
-
-    if print_stdout:
-        print("  %s" % output.decode("utf-8").replace("\n", "\n  "))
 
     return True
 
