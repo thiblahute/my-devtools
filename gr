@@ -159,7 +159,7 @@ class ReposManager:
         return True
 
     def execute(self, arg=None, commands=None, print_stdout=True, final_message="Done",
-                pre_launch_func=None, fix_in_shell=True):
+                pre_launch_func=None, fix_in_shell=True, no_failure=False):
 
         if commands is None:
             commands = [' '.join(args)]
@@ -177,7 +177,7 @@ class ReposManager:
                         self.cd_toplevel(repo)
                         return False
                 if not r(command, True, print_stdout,
-                         fix_in_shell=fix_in_shell):
+                         fix_in_shell=fix_in_shell, no_failure=no_failure) and not no_failure:
                     print("FATAL FAILURE")
                     self.cd_toplevel(repo)
                     return False
@@ -193,6 +193,11 @@ class ReposManager:
             self.repos.remove(s)
 
         print("Modules: %s" % self.repos)
+
+        if args and args[0] == "grep":
+            self.execute(None, "git grep " + ' '.join(["'" + arg + "'" for arg in args[1:]]),
+                         True, fix_in_shell=False, no_failure=True)
+            exit(0)
 
         if self.options.save_all:
             self.save_all()
@@ -213,7 +218,7 @@ class ReposManager:
                                 self.print_current_branch, fix_in_shell=True):
                 return False
 
-            command = 'git submodule update'
+            command = 'git submodule update --init'
             if not self.execute(None, command, False, "Submodule updated",
                                 self.print_current_branch, fix_in_shell=True):
                 return False
