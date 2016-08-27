@@ -146,7 +146,7 @@ class ReposManager:
                 autogen = 'CFLAGS="-O0" '
 
             if os.path.exists("autogen.sh"):
-                autogen += os.environ.get("autogen ", "./autogen.sh ")
+                autogen += os.environ.get("autogen", "./autogen.sh ")
                 autogen += '--disable-docbook '
             else:
                 autogen += os.environ.get("configure", "./configure ")
@@ -225,7 +225,7 @@ class ReposManager:
 
         if self.options.build or self.options.check:
             command = os.environ.get("make", "make")
-            if os.environ.get("XDGAPP_ENVPATH"):
+            if os.environ.get("PITIVI_DEVELOPMENT", '0') == '1':
                 command += " install"
             self.execute(None, command, False, pre_launch_func=self.run_autogen_if_needed)
 
