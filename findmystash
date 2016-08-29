@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+"""Find a stash or a commit in a git repo
+
+Usage:
+  findmystash <word_to_find> [--reflogs]
+
+Options:
+  --reflogs       Search in reflogs and not stashes
+  --version       Show version.
+"""
+
+import re
+import sys
+import subprocess
+
+from docopt import docopt
+
+def get_command(reflogs, i):
+    if reflogs:
+        c = "git show HEAD@{%d}"
+    else:
+        c = "git stash show -u stash@{%i}"
+
+    return c % i
+
+def main(reflogs):
+    i = 0
+
+    while True:
+        c = get_command(reflogs, i)
+        try:
+            res = subprocess.check_output(c.split(" "))
+        except subprocess.CalledProcessError as e:
+            if i > 0:
+                print("Got exception: %s" % e)
+                return
+            raise e
+
+        if re.findall(sys.argv[1], str(res)):
+            print("%s contain %s" % (c.split(" ")[-1], sys.argv[1]))
+        i += 1
+
+
+if __name__ == '__main__':
+    arguments = docopt(__doc__, version='findmystash 0.1')
+    word = arguments['<word_to_find>']
+    main(arguments.get("--reflogs"))
