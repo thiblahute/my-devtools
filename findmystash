@@ -2,9 +2,10 @@
 """Find a stash or a commit in a git repo
 
 Usage:
-  findmystash <word_to_find> [--reflogs]
+  findmystash <word_to_find> [--reflogs] [--show]
 
 Options:
+  --diff          Print the diff
   --reflogs       Search in reflogs and not stashes
   --version       Show version.
 """
@@ -23,7 +24,7 @@ def get_command(reflogs, i):
 
     return c % i
 
-def main(reflogs):
+def main(reflogs, diff):
     i = 0
 
     while True:
@@ -38,10 +39,12 @@ def main(reflogs):
 
         if re.findall(sys.argv[1], str(res)):
             print("%s contain %s" % (c.split(" ")[-1], sys.argv[1]))
+        if diff:
+            print("%s\n\n" % res)
         i += 1
 
 
 if __name__ == '__main__':
     arguments = docopt(__doc__, version='findmystash 0.1')
     word = arguments['<word_to_find>']
-    main(arguments.get("--reflogs"))
+    main(arguments.get("--reflogs"), arguments.get("--diff"))
