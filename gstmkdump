@@ -7,15 +7,17 @@ from glob import glob
 # Should be used with:
 #   alias gstdump="rm /tmp/gstpipelinedumps/*; GST_DEBUG_DUMP_DOT_DIR=/tmp/gstpipelinedumps/"
 # in bashrc
-DOTDIR = os.path.expanduser("~/.cache/gstmkdump/")
+DOTDIR_RAW = "~/.cache/gstmkdump/"
+DOTDIR = os.path.expanduser(DOTDIR_RAW)
 
 
 def run(options, args):
     """ Create image from dot files. """
     if options.target is not None:
-        os.system("rm -if %s *" % DOTDIR)
+        os.system("rm -if %s/*" % DOTDIR)
         os.system("mkdir %s" % DOTDIR)
-        os.system("scp %s:%s* %s" % (options.target, DOTDIR, DOTDIR))
+        print("scp %s:%s* %s" % (options.target, DOTDIR_RAW, DOTDIR))
+        os.system("scp %s:%s* %s" % (options.target, DOTDIR_RAW, DOTDIR))
 
     print(args)
     if options.list:
@@ -28,11 +30,11 @@ def run(options, args):
         else:
             dotfile = os.path.join(DOTDIR, args[0])
         OUTFILE = os.path.join(DOTDIR, "%s.svg" % args[0])
-        cmd = "dot '%s' -Tsvg -o '%s' && xdg-open '%s'" % \
+        cmd = "dot '%s' -Tsvg -o '%s' && gio open '%s'" % \
             (dotfile, OUTFILE, OUTFILE)
     else:
-        play_pause_fnames = sorted(glob(os.path.join(DOTDIR, "*PAUSED_PLAYING*")))
-        error_fnames = sorted(glob(os.path.join(DOTDIR, "*error*")))
+        play_pause_fnames = sorted(glob(os.path.join(DOTDIR, "*PAUSED_PLAYING*.dot")))
+        error_fnames = sorted(glob(os.path.join(DOTDIR, "*error.dot*")))
         if error_fnames and not options.choose:
             OUTFILE = os.path.join(DOTDIR, "%s.svg" % error_fnames[-1])
             cmd = "dot '%s' -Tsvg -o '%s' && xdg-open '%s'" % (
@@ -42,12 +44,12 @@ def run(options, args):
             cmd = "dot '%s' -Tsvg -o '%s' && xdg-open '%s'" % (
                 play_pause_fnames[-1], OUTFILE, OUTFILE)
         else:
-            files = os.listdir(DOTDIR)
+            files = sorted([f for f in os.listdir(DOTDIR) if f.endswith('.dot')],
+                           key=lambda x: x[len(x.split('-')[0]): len(x)])
             txt = 'Choose a file:\n'
             i = 0
-            for dotfile in files:
+            for i, dotfile in enumerate(files):
                 txt += '%d - %s\n' % (i, dotfile)
-                i += 1
             txt += "Result: "
 
             res = input(txt)
@@ -59,6 +61,7 @@ def run(options, args):
     print("Launching %s" % cmd)
 
     os.system(cmd)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
