@@ -44,8 +44,7 @@ def run(options, args):
             cmd = "dot '%s' -Tsvg -o '%s' && xdg-open '%s'" % (
                 play_pause_fnames[-1], OUTFILE, OUTFILE)
         else:
-            files = sorted([f for f in os.listdir(DOTDIR) if f.endswith('.dot')],
-                           key=lambda x: x[len(x.split('-')[0]): len(x)])
+            files = sorted([f for f in os.listdir(DOTDIR) if f.endswith('.dot')], key=lambda x: x.split('-')[1] + x.split('-')[0])
             txt = 'Choose a file:\n'
             i = 0
             for i, dotfile in enumerate(files):

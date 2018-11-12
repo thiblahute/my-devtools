@@ -2,7 +2,7 @@
 """Find a stash or a commit in a git repo
 
 Usage:
-  findmystash <word_to_find> [--reflogs] [--show]
+  findmystash <word_to_find> [--reflogs] [--diff]
 
 Options:
   --diff          Print the diff
@@ -13,8 +13,6 @@ Options:
 import re
 import sys
 import subprocess
-
-from docopt import docopt
 
 def get_command(reflogs, i):
     if reflogs:
@@ -38,13 +36,11 @@ def main(reflogs, diff):
             raise e
 
         if re.findall(sys.argv[1], str(res)):
-            print("%s contain %s" % (c.split(" ")[-1], sys.argv[1]))
+            print("\r%s contain %s" % (c.split(" ")[-1], sys.argv[1]))
         if diff:
-            print("%s\n\n" % res)
+            print("\r%s\n\n" % res.decode())
         i += 1
 
 
 if __name__ == '__main__':
-    arguments = docopt(__doc__, version='findmystash 0.1')
-    word = arguments['<word_to_find>']
-    main(arguments.get("--reflogs"), arguments.get("--diff"))
+    main("--reflogs" in sys.argv, '--diff' in sys.argv)
