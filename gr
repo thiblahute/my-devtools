@@ -66,6 +66,9 @@ def r(command, verbose=True, print_stdout=True, no_failure=False,
                 if e.returncode == 255:
                     print("Skipping")
                     return True
+                elif e.returncode == 254:
+                    print("-> returned 254, exiting")
+                    sys.exit(1)
             except:
                 # Result of subshell does not really matter
                 pass
