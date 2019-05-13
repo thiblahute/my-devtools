@@ -25,21 +25,24 @@ import subprocess
 import sys
 import time
 
+from concurrent.futures import ThreadPoolExecutor
 
 def printf(message):
     print(message)
     sys.stdout.flush()
 
 def r(command, verbose=True, print_stdout=True, no_failure=False,
-      fix_in_shell=True, recurse_i=0):
+      fix_in_shell=True, recurse_i=0, cwd=None):
     if verbose:
         print("    " + command)
 
+    if cwd:
+        print("%s:" % cwd)
     try:
         if print_stdout:
-            subprocess.check_call(command + " 2>&1", shell=True)
+            subprocess.check_call(command + " 2>&1", shell=True, cwd=cwd)
         else:
-            output = subprocess.check_output(command + " 2>&1", shell=True)
+            output = subprocess.check_output(command + " 2>&1", shell=True, cwd=cwd)
     except subprocess.CalledProcessError as e:
         try:
             out = getattr(e, "output", b"").decode()
@@ -48,8 +51,9 @@ def r(command, verbose=True, print_stdout=True, no_failure=False,
         if fix_in_shell:
             print("====================================="
                   "\n%s\nEntering a shell to fix that"
-                  " just `exit 0` once done, or `exit 255`"
+                  " just `exit 0` once done, `exit 255`"
                   " to skip update for that repository"
+                  " or `exit 254` to quit `gr`"
                   "\n=====================================" % (
                         out))
             try:
@@ -57,7 +61,7 @@ def r(command, verbose=True, print_stdout=True, no_failure=False,
                     shell = os.environ.get("COMSPEC", r"C:\WINDOWS\system32\cmd.exe")
                 else:
                     shell = os.environ.get("SHELL", os.path.realpath("/bin/sh"))
-                subprocess.check_call(shell)
+                subprocess.check_call(shell, cwd=cwd)
             except subprocess.CalledProcessError as e:
                 if e.returncode == 255:
                     print("Skipping")
@@ -176,7 +180,8 @@ class ReposManager:
         return True
 
     def execute(self, arg=None, commands=None, print_stdout=True, final_message="Done",
-                pre_launch_func=None, fix_in_shell=True, no_failure=False):
+                pre_launch_func=None, fix_in_shell=True, no_failure=False,
+                parallel=False):
 
         if commands is None:
             commands = [' '.join(args)]
@@ -184,23 +189,34 @@ class ReposManager:
         if not isinstance(commands, list):
             commands = [commands]
 
-        for repo in self.repos:
-            print("%s:" % repo)
-            os.chdir(repo)
-            for command in commands:
-                if pre_launch_func:
-                    if not pre_launch_func(print_stdout):
-                        print("FATAL FAILURE running %s" % pre_launch_func)
-                        self.cd_toplevel(repo)
-                        return False
-                if not r(command, True, print_stdout,
-                         fix_in_shell=fix_in_shell, no_failure=no_failure) and not no_failure:
-                    print("FATAL FAILURE")
-                    self.cd_toplevel(repo)
-                    return False
+        n_workers = len(self.repos) if parallel else 1
+        print("%s workers" % n_workers)
+        futures = []
+        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+            for repo in self.repos:
+                os.chdir(repo)
+                for command in commands:
+                    if pre_launch_func:
+                        if not pre_launch_func(print_stdout):
+                            print("FATAL FAILURE running %s" % pre_launch_func)
+                            self.cd_toplevel(repo)
+                            return False
 
-            print(final_message)
-            self.cd_toplevel(repo)
+                    task = executor.submit(r, command, True, print_stdout, fix_in_shell=fix_in_shell, no_failure=no_failure,
+                        cwd=os.path.realpath(os.curdir))
+                    if parallel:
+                        futures.append(task)
+                    else:
+                        if not task.result() and not no_failure:
+                            print("FATAL FAILURE")
+                            self.cd_toplevel(repo)
+                            return False
+
+                self.cd_toplevel(repo)
+
+        if parallel:
+            for future in futures:
+                print(future.result())
 
         return True
 
@@ -260,7 +276,8 @@ class ReposManager:
             self.execute(None, command, False)
 
         if args:
-            self.execute(args, print_stdout=self.options.verbose)
+            self.execute(args, print_stdout=self.options.verbose,
+                parallel=not self.options.no_parallel and not self.options.verbose)
 
         return True
 
@@ -269,6 +286,7 @@ if __name__ == "__main__":
     parser.add_argument("-p", "--print", dest="print_modules",
                         action="store_true",
                         default=False)
+
     parser.add_argument("-s", "--save-all", dest="save_all",
                         action="store_true",
                         default=False)
@@ -309,6 +327,11 @@ if __name__ == "__main__":
                         default=[])
 
     parser.add_argument("-v", "--verbose", dest="verbose",
+                        action="store_true",
+                        default=False)
+
+    parser.add_argument("-n", "--no-parallel", dest="no_parallel",
+                        help="Run commands in all repos 'at the same time'",
                         action="store_true",
                         default=False)
 
