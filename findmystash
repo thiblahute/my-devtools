@@ -13,6 +13,7 @@ Options:
 import re
 import sys
 import subprocess
+import argparse
 
 def get_command(reflogs, i):
     if reflogs:
@@ -22,11 +23,11 @@ def get_command(reflogs, i):
 
     return c % i
 
-def main(reflogs, diff):
+def main(options):
     i = 0
 
     while True:
-        c = get_command(reflogs, i)
+        c = get_command(options.reflogs, i)
         try:
             res = subprocess.check_output(c.split(" "))
         except subprocess.CalledProcessError as e:
@@ -35,12 +36,17 @@ def main(reflogs, diff):
                 return
             raise e
 
-        if re.findall(sys.argv[1], str(res)):
-            print("\r%s contain %s" % (c.split(" ")[-1], sys.argv[1]))
-        if diff:
+        if re.findall(options.regex[0], str(res)):
+            print("\r%s contain %s" % (c.split(" ")[-1], options.regex[0]))
+        if options.diff:
             print("\r%s\n\n" % res.decode())
         i += 1
 
 
 if __name__ == '__main__':
-    main("--reflogs" in sys.argv, '--diff' in sys.argv)
+    PARSER = argparse.ArgumentParser()
+    PARSER.add_argument('--reflogs', default=False, action="store_true")
+    PARSER.add_argument('--diff', default=False, action="store_true")
+    PARSER.add_argument('regex', nargs=1)
+    options = PARSER.parse_args()
+    main(options)

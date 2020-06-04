@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import shutil
 import argparse
 from glob import glob
 
@@ -9,7 +10,13 @@ from glob import glob
 # in bashrc
 DOTDIR_RAW = "~/.cache/gstmkdump/"
 DOTDIR = os.path.expanduser(DOTDIR_RAW)
+DOT = "dot"
 
+def show_dot_cmd(dotfile, OUTFILE):
+    if shutil.which("xdot") and not os.environ.get("NO_XDOT"):
+        return "xdot %s" % dotfile
+    else:
+        return DOT + " '%s' -Tsvg -o '%s' && firefox '%s'" % (dotfile, OUTFILE, OUTFILE)
 
 def run(options, args):
     """ Create image from dot files. """
@@ -30,19 +37,16 @@ def run(options, args):
         else:
             dotfile = os.path.join(DOTDIR, args[0])
         OUTFILE = os.path.join(DOTDIR, "%s.svg" % args[0])
-        cmd = "dot '%s' -Tsvg -o '%s' && gio open '%s'" % \
-            (dotfile, OUTFILE, OUTFILE)
+        cmd = show_dot_cmd(dotfile, OUTFILE)
     else:
         play_pause_fnames = sorted(glob(os.path.join(DOTDIR, "*PAUSED_PLAYING*.dot")))
         error_fnames = sorted(glob(os.path.join(DOTDIR, "*error.dot*")))
         if error_fnames and not options.choose:
             OUTFILE = os.path.join(DOTDIR, "%s.svg" % error_fnames[-1])
-            cmd = "dot '%s' -Tsvg -o '%s' && xdg-open '%s'" % (
-                error_fnames[-1], OUTFILE, OUTFILE)
+            cmd = show_dot_cmd(error_fnames[-1], OUTFILE)
         elif play_pause_fnames and not options.choose:
             OUTFILE = os.path.join(DOTDIR, "%s.svg" % play_pause_fnames[-1])
-            cmd = "dot '%s' -Tsvg -o '%s' && xdg-open '%s'" % (
-                play_pause_fnames[-1], OUTFILE, OUTFILE)
+            cmd = show_dot_cmd(play_pause_fnames[-1], OUTFILE)
         else:
             files = sorted([f for f in os.listdir(DOTDIR) if f.endswith('.dot')], key=lambda x: x.split('-')[1] + x.split('-')[0])
             txt = 'Choose a file:\n'
@@ -54,8 +58,7 @@ def run(options, args):
             res = input(txt)
             print(res)
             OUTFILE = os.path.join(DOTDIR, "%s.svg" % files[int(res)])
-            cmd = "dot '%s' -Tsvg -o '%s' && xdg-open '%s'" % \
-                (os.path.join(DOTDIR, files[int(res)]), OUTFILE, OUTFILE)
+            cmd = show_dot_cmd(os.path.join(DOTDIR, files[int(res)]), OUTFILE)
 
     print("Launching %s" % cmd)
 

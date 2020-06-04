@@ -127,6 +127,19 @@ class ReposManager:
             self.cd_toplevel(repo)
             printf("\n")
 
+    def count_commits(self):
+        total = 0
+        count_script = 'git log --pretty="%cd %h" ' + self.options.count_commits_options + '|wc -l'
+        for repo in self.repos:
+            os.chdir(repo)
+            stdout = subprocess.check_output(count_script, shell=True).decode("utf-8")
+            num_commits = int(stdout)
+            print("%s: %d" % (os.path.basename(repo), num_commits))
+            total += num_commits
+            self.cd_toplevel(repo)
+
+        printf("\nTotal: %d" % total)
+
     def save_all(self):
         bname = "save-%s" % datetime.datetime.fromtimestamp(time.time()).strftime('%d-%m-%Y-%H.%M.%S')
         for repo in self.repos:
@@ -185,7 +198,8 @@ class ReposManager:
             commands = [commands]
 
         for repo in self.repos:
-            print("%s:" % repo)
+            print("# %s\n" % (repo))
+            sys.stdout.flush()
             os.chdir(repo)
             for command in commands:
                 if pre_launch_func:
@@ -199,8 +213,9 @@ class ReposManager:
                     self.cd_toplevel(repo)
                     return False
 
-            print(final_message)
             self.cd_toplevel(repo)
+            if options.verbose:
+                print("\n")
 
         return True
 
@@ -209,7 +224,7 @@ class ReposManager:
             print("Skipping %s" % s)
             self.repos.remove(s)
 
-        print("Modules: %s" % self.repos)
+        # print("Modules: %s" % self.repos)
 
         if args and args[0] == "grep":
             self.execute(None, "git grep " + ' '.join(["'" + arg + "'" for arg in args[1:]]),
@@ -221,6 +236,10 @@ class ReposManager:
 
         if self.options.print_modules:
             self.print_modules()
+            sys.exit(0)
+
+        if self.options.count_commits_options is not None:
+            self.count_commits()
             sys.exit(0)
 
         if self.options.clean:
@@ -273,7 +292,7 @@ if __name__ == "__main__":
                         action="store_true",
                         default=False)
 
-    parser.add_argument("-c", "--clean", dest="clean",
+    parser.add_argument("--clean", dest="clean",
                         action="store_true",
                         default=False)
 
@@ -311,6 +330,10 @@ if __name__ == "__main__":
     parser.add_argument("-v", "--verbose", dest="verbose",
                         action="store_true",
                         default=False)
+
+    parser.add_argument("-count", "--count-commits-git-options", dest="count_commits_options",
+                        help="Count commits with the givent args",
+                        default=None)
 
     n = 0
     (options, args) = parser.parse_known_args()
